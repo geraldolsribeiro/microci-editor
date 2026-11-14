@@ -1,3 +1,31 @@
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(default))]
+pub struct CodeEditor {
+    language: String,
+    code: String,
+}
+
+impl Default for CodeEditor {
+    fn default() -> Self {
+        Self {
+            language: "rs".into(),
+            code: "// A very simple example\n\
+fn main() {\n\
+\tprintln!(\"Hello world!\");\n\
+}\n\
+"
+            .into(),
+        }
+    }
+}
+
+struct Step {
+    name: String,
+    description: String,
+    plugin_name: String,
+    run_as: String,
+}
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -6,14 +34,24 @@ pub struct TemplateApp {
     label: String,
 
     #[serde(skip)] // This how you opt-out of serialization of a field
+    steps: Vec<Step>,
+
+    #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
+        let iter = (0..10).map(|i| Step {
+            name: format!("Step name {}", i),
+            description: format!("Step description {}", i),
+            plugin_name: format!("plugin_name_{}", i),
+            run_as: format!("run_as{}", i),
+        });
         Self {
             // Example stuff:
             label: "Hello World!".to_owned(),
+            steps: Vec::from_iter(iter),
             value: 2.7,
         }
     }
@@ -67,10 +105,17 @@ impl eframe::App for TemplateApp {
 
         egui::CentralPanel::default().show(ui, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            // ui.heading("MicroCI Editor 0.1.0");
+            // ui.separator();
+
+            for s in &self.steps {
+                ui.heading(&s.name);
+                ui.label(&s.description);
+                ui.separator();
+            }
 
             ui.horizontal(|ui| {
-                ui.label("Write something: ");
+                ui.label("xx Write something: ");
                 ui.text_edit_singleline(&mut self.label);
             });
 
@@ -81,29 +126,24 @@ impl eframe::App for TemplateApp {
 
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            // ui.add(egui::github_link_file!(
+            //     "https://microci.dev/",
+            //     "https://microci.dev/"
+            // ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
+                footer(ui);
                 egui::warn_if_debug_build(ui);
             });
         });
     }
 }
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
+fn footer(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
+        ui.hyperlink_to("microci.dev", "https://microci.dev/");
         ui.label(".");
     });
 }
