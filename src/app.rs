@@ -1,3 +1,5 @@
+use egui::ScrollArea;
+
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct CodeEditor {
@@ -42,7 +44,7 @@ pub struct TemplateApp {
 
 impl Default for TemplateApp {
     fn default() -> Self {
-        let iter = (0..10).map(|i| Step {
+        let iter = (0..20).map(|i| Step {
             name: format!("Step name {}", i),
             description: format!("Step description {}", i),
             plugin_name: format!("plugin_name_{}", i),
@@ -108,33 +110,37 @@ impl eframe::App for TemplateApp {
             // ui.heading("MicroCI Editor 0.1.0");
             // ui.separator();
 
-            for s in &self.steps {
-                ui.heading(&s.name);
-                ui.label(&s.description);
-                ui.separator();
-            }
+            ScrollArea::both().show(ui, |ui| {
+                for s in &self.steps {
+                    ui.heading(&s.name);
+                    ui.label(&s.description);
+                    ui.separator();
+                }
 
-            ui.horizontal(|ui| {
-                ui.label("xx Write something: ");
-                ui.text_edit_singleline(&mut self.label);
+                ui.separator();
+
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    footer(ui);
+                    egui::warn_if_debug_build(ui);
+                });
             });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
-
-            ui.separator();
+            // ui.horizontal(|ui| {
+            //     ui.label("xx Write something: ");
+            //     ui.text_edit_singleline(&mut self.label);
+            // });
+            //
+            // ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
+            // if ui.button("Increment").clicked() {
+            //     self.value += 1.0;
+            // }
+            //
+            // ui.separator();
 
             // ui.add(egui::github_link_file!(
             //     "https://microci.dev/",
             //     "https://microci.dev/"
             // ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                footer(ui);
-                egui::warn_if_debug_build(ui);
-            });
         });
     }
 }
