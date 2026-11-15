@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::str::FromStr as _;
 
 use egui::ScrollArea;
 use yaml_edit::{Document, Mapping as YamlMapping};
@@ -7,7 +7,7 @@ const PADDING: f32 = 5.0;
 #[cfg(target_arch = "wasm32")]
 const WEB_DEMO_YAML: &str = include_str!("../.microCI.yml");
 
-/// The MicroCI editor application.
+/// The `MicroCI` editor application.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct MicroCIEditorApp {
@@ -78,70 +78,68 @@ impl eframe::App for MicroCIEditorApp {
             ui.add_space(PADDING);
 
             ScrollArea::both().show(ui, |ui| {
-                if let Some(mapping) = self.document.as_mapping() {
-                    if let Some(steps) = mapping.get_sequence("steps") {
-                        let mut index = 0;
-                        for step in &steps {
-                            if let Some(step) = step.as_mapping() {
-                                let (
-                                    mut name,
-                                    mut description,
-                                    mut only,
-                                    mut run_as,
-                                    mut network,
-                                    mut docker,
-                                ) = step_text_fields(step, index + 1);
+                if let Some(mapping) = self.document.as_mapping()
+                    && let Some(steps) = mapping.get_sequence("steps")
+                {
+                    for (index, step) in (&steps).into_iter().enumerate() {
+                        if let Some(step) = step.as_mapping() {
+                            let (
+                                mut name,
+                                mut description,
+                                mut only,
+                                mut run_as,
+                                mut network,
+                                mut docker,
+                            ) = step_text_fields(step, index + 1);
 
-                                ui.heading(format!("{}. {name}", index + 1));
+                            ui.heading(format!("{}. {name}", index + 1));
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut name).changed() {
-                                        step.set("name", name.clone());
-                                    }
-                                    ui.label("name");
-                                });
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut name).changed() {
+                                    step.set("name", name.clone());
+                                }
+                                ui.label("name");
+                            });
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut description).changed() {
-                                        step.set("description", description.clone());
-                                    }
-                                    ui.label("description");
-                                });
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut description).changed() {
+                                    step.set("description", description.clone());
+                                }
+                                ui.label("description");
+                            });
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut only).changed() {
-                                        step.set("only", only.clone());
-                                    }
-                                    ui.label("only");
-                                });
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut only).changed() {
+                                    step.set("only", only.clone());
+                                }
+                                ui.label("only");
+                            });
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut run_as).changed() {
-                                        step.set("run_as", run_as.clone());
-                                    }
-                                    ui.label("run_as");
-                                });
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut run_as).changed() {
+                                    step.set("run_as", run_as.clone());
+                                }
+                                ui.label("run_as");
+                            });
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut network).changed() {
-                                        step.set("network", network.clone());
-                                    }
-                                    ui.label("network");
-                                });
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut network).changed() {
+                                    step.set("network", network.clone());
+                                }
+                                ui.label("network");
+                            });
 
-                                ui.horizontal(|ui| {
-                                    if ui.text_edit_singleline(&mut docker).changed() {
-                                        step.set("docker", docker.clone());
-                                    }
-                                    ui.label("docker");
-                                });
-                            }
-
-                            ui.add_space(PADDING);
-                            ui.separator();
-                            ui.add_space(PADDING);
-                            index = index + 1;
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut docker).changed() {
+                                    step.set("docker", docker.clone());
+                                }
+                                ui.label("docker");
+                            });
                         }
+
+                        ui.add_space(PADDING);
+                        ui.separator();
+                        ui.add_space(PADDING);
                     }
                 }
 
@@ -157,13 +155,13 @@ impl eframe::App for MicroCIEditorApp {
 fn load_yaml() -> String {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        return std::fs::read_to_string(".microCI.yml").unwrap_or_else(|error| {
+        std::fs::read_to_string(".microCI.yml").unwrap_or_else(|error| {
             let directory = std::env::current_dir()
                 .map_or_else(|_| "the current directory".to_owned(), |path| path.display().to_string());
             panic!(
                 "Unable to load .microCI.yml from {directory}: {error}. Start the editor from a directory containing .microCI.yml."
             );
-        });
+        })
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -238,10 +236,13 @@ fn step_text_fields(
     step: &YamlMapping,
     index: usize,
 ) -> (String, String, String, String, String, String) {
-    let field = |key: &str| step.get(key).map_or_else(String::new, yaml_value_text);
+    let field = |key: &str| {
+        step.get(key)
+            .map_or_else(String::new, |value| yaml_value_text(&value))
+    };
     (
         step.get("name")
-            .map_or_else(|| format!("Step {index}"), yaml_value_text),
+            .map_or_else(|| format!("Step {index}"), |value| yaml_value_text(&value)),
         field("description"),
         field("only"),
         field("run_as"),
@@ -250,7 +251,7 @@ fn step_text_fields(
     )
 }
 
-fn yaml_value_text(value: yaml_edit::YamlNode) -> String {
+fn yaml_value_text(value: &yaml_edit::YamlNode) -> String {
     value
         .as_scalar()
         .map_or_else(|| value.to_string(), |scalar| scalar.as_string())

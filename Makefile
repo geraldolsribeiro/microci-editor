@@ -11,6 +11,10 @@ build:
 build_wasm:
 	cargo build --target=wasm32-unknown-unknown
 
+.PHONY: clippy
+clippy:
+	 cargo clippy --all-targets --all-features -- -D warnings
+
 .PHONY: publish
 publish:
 	cargo fmt --check
