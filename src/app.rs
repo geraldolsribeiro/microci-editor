@@ -1,13 +1,9 @@
 use std::str::FromStr;
 
 use egui::ScrollArea;
-use serde_yaml::{Mapping, Value};
 use yaml_edit::{Document, Mapping as YamlMapping};
 
 const PADDING: f32 = 5.0;
-struct Step {
-    data: Mapping,
-}
 
 /// The MicroCI editor application.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -85,19 +81,58 @@ impl eframe::App for MicroCIEditorApp {
                         let mut index = 0;
                         for step in &steps {
                             if let Some(step) = step.as_mapping() {
-                                let (name, mut description, only, run_as, network) =
-                                    step_text_fields(step, index + 1);
+                                let (
+                                    mut name,
+                                    mut description,
+                                    mut only,
+                                    mut run_as,
+                                    mut network,
+                                    mut docker,
+                                ) = step_text_fields(step, index + 1);
 
                                 ui.heading(format!("{}. {name}", index + 1));
+
                                 ui.horizontal(|ui| {
-                                    ui.label("Description:");
+                                    if ui.text_edit_singleline(&mut name).changed() {
+                                        step.set("name", name.clone());
+                                    }
+                                    ui.label("name");
+                                });
+
+                                ui.horizontal(|ui| {
                                     if ui.text_edit_singleline(&mut description).changed() {
                                         step.set("description", description.clone());
                                     }
+                                    ui.label("description");
                                 });
-                                ui.label(only);
-                                ui.label(run_as);
-                                ui.label(network);
+
+                                ui.horizontal(|ui| {
+                                    if ui.text_edit_singleline(&mut only).changed() {
+                                        step.set("only", only.clone());
+                                    }
+                                    ui.label("only");
+                                });
+
+                                ui.horizontal(|ui| {
+                                    if ui.text_edit_singleline(&mut run_as).changed() {
+                                        step.set("run_as", run_as.clone());
+                                    }
+                                    ui.label("run_as");
+                                });
+
+                                ui.horizontal(|ui| {
+                                    if ui.text_edit_singleline(&mut network).changed() {
+                                        step.set("network", network.clone());
+                                    }
+                                    ui.label("network");
+                                });
+
+                                ui.horizontal(|ui| {
+                                    if ui.text_edit_singleline(&mut docker).changed() {
+                                        step.set("docker", docker.clone());
+                                    }
+                                    ui.label("docker");
+                                });
                             }
 
                             // egui::Grid::new(("step-fields", index))
@@ -211,13 +246,11 @@ fn save_yaml(document: &Document) -> String {
         {
             for step in steps.values() {
                 if let Some(step) = step.as_mapping() {
-                    let empty_description = step
-                        .get("description")
-                        .is_some_and(|value| {
-                            value
-                                .as_scalar()
-                                .is_some_and(|scalar| scalar.as_string().is_empty())
-                        });
+                    let empty_description = step.get("description").is_some_and(|value| {
+                        value
+                            .as_scalar()
+                            .is_some_and(|scalar| scalar.as_string().is_empty())
+                    });
                     if empty_description {
                         step.remove("description");
                     } else if step.get("name").is_some()
@@ -234,24 +267,6 @@ fn save_yaml(document: &Document) -> String {
             Err(error) => format!("Could not save .microCI.yml: {error}"),
         }
     }
-}
-
-fn ordered_step_mapping(data: &Mapping) -> Mapping {
-    let mut ordered = Mapping::new();
-    for key in ["name", "description"] {
-        let key_value = Value::String(key.to_owned());
-        if let Some(value) = data.get(&key_value)
-            && !(key == "description" && value.as_str() == Some(""))
-        {
-            ordered.insert(key_value, value.clone());
-        }
-    }
-    for (key, value) in data {
-        if key.as_str() != Some("name") && key.as_str() != Some("description") {
-            ordered.insert(key.clone(), value.clone());
-        }
-    }
-    ordered
 }
 
 fn load_document() -> Option<Document> {
@@ -278,41 +293,19 @@ fn load_document() -> Option<Document> {
     }
 }
 
-// fn load_steps(document: &Document) -> Vec<Step> {
-//     // Build the UI projection from the complete syntax-preserving document.
-//     let document: Value = match serde_yaml::from_str(&document.to_string()) {
-//         Ok(document) => document,
-//         Err(error) => {
-//             log::error!("Could not convert .microCI.yml to the editor model: {error}");
-//             return Vec::new();
-//         }
-//     };
-//
-//     document
-//         .get("steps")
-//         .and_then(Value::as_sequence)
-//         .into_iter()
-//         .flatten()
-//         .filter_map(Value::as_mapping)
-//         .cloned()
-//         .map(|data| Step { data })
-//         .collect()
-// }
-
 fn step_text_fields(
     step: &YamlMapping,
     index: usize,
-) -> (String, String, String, String, String) {
+) -> (String, String, String, String, String, String) {
     let field = |key: &str| step.get(key).map_or_else(String::new, yaml_value_text);
     (
-        step.get("name").map_or_else(
-            || format!("Step {index}"),
-            yaml_value_text,
-        ),
+        step.get("name")
+            .map_or_else(|| format!("Step {index}"), yaml_value_text),
         field("description"),
         field("only"),
         field("run_as"),
         field("network"),
+        field("docker"),
     )
 }
 
@@ -320,56 +313,6 @@ fn yaml_value_text(value: yaml_edit::YamlNode) -> String {
     value
         .as_scalar()
         .map_or_else(|| value.to_string(), |scalar| scalar.as_string())
-}
-
-fn mapping_value<'a>(mapping: &'a Mapping, key: &str) -> Option<&'a Value> {
-    mapping.get(Value::String(key.to_owned()))
-}
-
-fn mapping_string(mapping: &Mapping, key: &str) -> Option<String> {
-    mapping_value(mapping, key)
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-}
-
-fn key_text(value: &Value) -> String {
-    value
-        .as_str()
-        .map_or_else(|| format!("{value:?}"), str::to_owned)
-}
-
-fn description_text(value: &Value) -> String {
-    value
-        .as_str()
-        .map_or_else(|| format!("{value:?}"), str::to_owned)
-}
-
-fn show_yaml_value(ui: &mut egui::Ui, value: &Value) {
-    match value {
-        Value::Mapping(mapping) => {
-            for (index, (key, child)) in mapping.iter().enumerate() {
-                ui.push_id(index, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.strong(key_text(key));
-                        show_yaml_value(ui, child);
-                    });
-                });
-            }
-        }
-        Value::Sequence(sequence) => {
-            for (index, child) in sequence.iter().enumerate() {
-                ui.push_id(index, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("[{index}]"));
-                        show_yaml_value(ui, child);
-                    });
-                });
-            }
-        }
-        _ => {
-            ui.label(description_text(value));
-        }
-    }
 }
 
 fn footer(ui: &mut egui::Ui) {
