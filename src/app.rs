@@ -1,109 +1,46 @@
 use egui::ScrollArea;
+use serde_yaml::{Mapping, Value};
 
-#[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-enum PluginName {
-    Bash,
-    Fetch,
-}
-
-const PADDING: f32 = 5.;
-
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
-pub struct CodeEditor {
-    language: String,
-    code: String,
-}
-
-impl Default for CodeEditor {
-    fn default() -> Self {
-        Self {
-            language: "rs".into(),
-            code: "// A very simple example\n\
-fn main() {\n\
-\tprintln!(\"Hello world!\");\n\
-}\n\
-"
-            .into(),
-        }
-    }
-}
-
+const PADDING: f32 = 5.0;
 struct Step {
-    name: String,
-    description: String,
-    plugin_name: PluginName,
-    run_as: String,
+    data: Mapping,
 }
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+/// The MicroCI editor application.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)]
 pub struct MicroCIEditorApp {
-    // Example stuff:
     label: String,
 
-    #[serde(skip)] // This how you opt-out of serialization of a field
+    #[serde(skip)]
     steps: Vec<Step>,
-
-    selected_item: Option<usize>,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
 }
 
 impl Default for MicroCIEditorApp {
     fn default() -> Self {
-        let iter = (1..=20).map(|i| Step {
-            name: format!("{}. Step name {}", i, i),
-            description: format!("Step description {}", i),
-            plugin_name: PluginName::Bash, // format!("plugin_name_{}", i),
-            run_as: format!("run_as{}", i),
-        });
         Self {
-            label: "Hello World!".to_owned(),
-            steps: Vec::from_iter(iter),
-            selected_item: None,
-            value: 2.7,
+            label: "MicroCI editor".to_owned(),
+            steps: load_steps(&load_yaml()),
         }
     }
 }
 
 impl MicroCIEditorApp {
-    /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
-        } else {
-            Default::default()
-        }
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        // The YAML is embedded in the binary, so this also works in the web build.
+        Self::default()
     }
 }
 
 impl eframe::App for MicroCIEditorApp {
-    /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
         egui::Panel::top("top_panel").show(ui, |ui| {
-            // The top panel is often a good place for a menu bar:
-
             egui::MenuBar::new().ui(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
+                if !cfg!(target_arch = "wasm32") {
                     ui.menu_button("File", |ui| {
                         if ui.button("Quit").clicked() {
                             ui.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -111,28 +48,133 @@ impl eframe::App for MicroCIEditorApp {
                     });
                     ui.add_space(16.0);
                 }
-
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
+            ui.heading(&self.label);
+            ui.label(format!("{} steps", self.steps.len()));
+            ui.add_space(PADDING);
+
             ScrollArea::both().show(ui, |ui| {
-                for (idx, s) in &mut self.steps.iter().enumerate() {
-                    ui.heading(&s.name);
-                    ui.label(&s.description);
+                for (index, step) in self.steps.iter().enumerate() {
+                    let name = mapping_string(&step.data, "name")
+                        .unwrap_or_else(|| format!("Step {}", index + 1));
+                    ui.heading(format!("{}. {name}", index + 1));
+
+                    if let Some(description) = mapping_value(&step.data, "description") {
+                        ui.label(description_text(description));
+                    }
+
+                    ui.add_space(PADDING);
+                    for (field_index, (key, value)) in step.data.iter().enumerate() {
+                        if key.as_str() == Some("name") || key.as_str() == Some("description") {
+                            continue;
+                        }
+                        // The same field names (for example `plugin`) occur in many steps.
+                        // Include the step and field index in the widget ID.
+                        ui.push_id((index, field_index), |ui| {
+                            ui.collapsing(key_text(key), |ui| show_yaml_value(ui, value));
+                        });
+                    }
                     ui.add_space(PADDING);
                     ui.separator();
                     ui.add_space(PADDING);
                 }
 
-                ui.add_space(30.5);
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     footer(ui);
                     egui::warn_if_debug_build(ui);
                 });
             });
         });
+    }
+}
+
+fn load_yaml() -> String {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        return std::fs::read_to_string(".microCI.yml").unwrap_or_else(|error| {
+            let directory = std::env::current_dir()
+                .map_or_else(|_| "the current directory".to_owned(), |path| path.display().to_string());
+            panic!(
+                "Unable to load .microCI.yml from {directory}: {error}. Start the editor from a directory containing .microCI.yml."
+            );
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    panic!("Unable to load .microCI.yml: browser builds cannot read the local filesystem.");
+}
+
+fn load_steps(yaml: &str) -> Vec<Step> {
+    let document: Value = match serde_yaml::from_str(yaml) {
+        Ok(document) => document,
+        Err(error) => {
+            log::error!("Could not parse src/microCI.yml: {error}");
+            return Vec::new();
+        }
+    };
+
+    document
+        .get("steps")
+        .and_then(Value::as_sequence)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_mapping)
+        .cloned()
+        .map(|data| Step { data })
+        .collect()
+}
+
+fn mapping_value<'a>(mapping: &'a Mapping, key: &str) -> Option<&'a Value> {
+    mapping.get(Value::String(key.to_owned()))
+}
+
+fn mapping_string(mapping: &Mapping, key: &str) -> Option<String> {
+    mapping_value(mapping, key)
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
+fn key_text(value: &Value) -> String {
+    value
+        .as_str()
+        .map_or_else(|| format!("{value:?}"), str::to_owned)
+}
+
+fn description_text(value: &Value) -> String {
+    value
+        .as_str()
+        .map_or_else(|| format!("{value:?}"), str::to_owned)
+}
+
+fn show_yaml_value(ui: &mut egui::Ui, value: &Value) {
+    match value {
+        Value::Mapping(mapping) => {
+            for (index, (key, child)) in mapping.iter().enumerate() {
+                ui.push_id(index, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.strong(key_text(key));
+                        show_yaml_value(ui, child);
+                    });
+                });
+            }
+        }
+        Value::Sequence(sequence) => {
+            for (index, child) in sequence.iter().enumerate() {
+                ui.push_id(index, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("[{index}]"));
+                        show_yaml_value(ui, child);
+                    });
+                });
+            }
+        }
+        _ => {
+            ui.label(description_text(value));
+        }
     }
 }
 
