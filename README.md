@@ -1,5 +1,7 @@
 # MicroCI Editor
 
+![MicroCI Editor logo](assets/favicon-192x192.png)
+
 A native Rust/egui editor for [MicroCI](https://microci.dev/) workflow files.
 
 ![MicroCI Editor screenshot](docs/images/screenshot.png)
