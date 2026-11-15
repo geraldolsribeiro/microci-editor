@@ -206,6 +206,29 @@ fn save_yaml(document: &Document) -> String {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
+        if let Some(root) = document.as_mapping()
+            && let Some(steps) = root.get_sequence("steps")
+        {
+            for step in steps.values() {
+                if let Some(step) = step.as_mapping() {
+                    let empty_description = step
+                        .get("description")
+                        .is_some_and(|value| {
+                            value
+                                .as_scalar()
+                                .is_some_and(|scalar| scalar.as_string().is_empty())
+                        });
+                    if empty_description {
+                        step.remove("description");
+                    } else if step.get("name").is_some()
+                        && let Some(description) = step.get("description")
+                    {
+                        step.move_after("name", "description", description);
+                    }
+                }
+            }
+        }
+
         match std::fs::write(".microCI.yml", document.to_string()) {
             Ok(()) => "Saved .microCI.yml".to_owned(),
             Err(error) => format!("Could not save .microCI.yml: {error}"),
@@ -233,7 +256,21 @@ fn ordered_step_mapping(data: &Mapping) -> Mapping {
 
 fn load_document() -> Option<Document> {
     match Document::from_str(&load_yaml()) {
-        Ok(document) => Some(document),
+        Ok(document) => {
+            if let Some(root) = document.as_mapping()
+                && let Some(steps) = root.get_sequence("steps")
+            {
+                for step in steps.values() {
+                    if let Some(step) = step.as_mapping()
+                        && step.get("name").is_some()
+                        && let Some(description) = step.get("description")
+                    {
+                        step.move_after("name", "description", description);
+                    }
+                }
+            }
+            Some(document)
+        }
         Err(error) => {
             log::error!("Could not parse .microCI.yml: {error}");
             None
