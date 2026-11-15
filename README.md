@@ -2,6 +2,8 @@
 
 A native Rust/egui editor for [MicroCI](https://microci.dev/) workflow files.
 
+![MicroCI Editor screenshot](docs/images/screenshot.png)
+
 The editor loads `.microCI.yml` from the current working directory, displays the workflow steps, and allows editing common step fields. YAML is parsed and stored with [`yaml-edit`](https://crates.io/crates/yaml-edit) so comments and formatting are preserved when the document is saved.
 
 ## Features
@@ -19,6 +21,16 @@ The editor loads `.microCI.yml` from the current working directory, displays the
 
 - Rust 1.95 or newer
 - A desktop environment supported by [eframe](https://github.com/emilk/egui/tree/master/crates/eframe)
+
+## Installation
+
+Install the latest published version from [crates.io](https://crates.io/crates/microci-editor):
+
+```sh
+cargo install microci-editor
+```
+
+This installs the `microci-editor` executable.
 
 ## Running
 
