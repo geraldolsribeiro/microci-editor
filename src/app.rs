@@ -1,5 +1,14 @@
 use egui::ScrollArea;
 
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+enum PluginName {
+    Bash,
+    Fetch,
+}
+
+const PADDING: f32 = 5.;
+
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct CodeEditor {
@@ -24,42 +33,44 @@ fn main() {\n\
 struct Step {
     name: String,
     description: String,
-    plugin_name: String,
+    plugin_name: PluginName,
     run_as: String,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
+pub struct MicroCIEditorApp {
     // Example stuff:
     label: String,
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     steps: Vec<Step>,
 
+    selected_item: Option<usize>,
+
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
 }
 
-impl Default for TemplateApp {
+impl Default for MicroCIEditorApp {
     fn default() -> Self {
-        let iter = (0..20).map(|i| Step {
-            name: format!("Step name {}", i),
+        let iter = (1..=20).map(|i| Step {
+            name: format!("{}. Step name {}", i, i),
             description: format!("Step description {}", i),
-            plugin_name: format!("plugin_name_{}", i),
+            plugin_name: PluginName::Bash, // format!("plugin_name_{}", i),
             run_as: format!("run_as{}", i),
         });
         Self {
-            // Example stuff:
             label: "Hello World!".to_owned(),
             steps: Vec::from_iter(iter),
+            selected_item: None,
             value: 2.7,
         }
     }
 }
 
-impl TemplateApp {
+impl MicroCIEditorApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -75,7 +86,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for MicroCIEditorApp {
     /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -106,41 +117,21 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            // ui.heading("MicroCI Editor 0.1.0");
-            // ui.separator();
-
             ScrollArea::both().show(ui, |ui| {
-                for s in &self.steps {
+                for (idx, s) in &mut self.steps.iter().enumerate() {
                     ui.heading(&s.name);
                     ui.label(&s.description);
+                    ui.add_space(PADDING);
                     ui.separator();
+                    ui.add_space(PADDING);
                 }
 
-                ui.separator();
-
+                ui.add_space(30.5);
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     footer(ui);
                     egui::warn_if_debug_build(ui);
                 });
             });
-
-            // ui.horizontal(|ui| {
-            //     ui.label("xx Write something: ");
-            //     ui.text_edit_singleline(&mut self.label);
-            // });
-            //
-            // ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            // if ui.button("Increment").clicked() {
-            //     self.value += 1.0;
-            // }
-            //
-            // ui.separator();
-
-            // ui.add(egui::github_link_file!(
-            //     "https://microci.dev/",
-            //     "https://microci.dev/"
-            // ));
         });
     }
 }
