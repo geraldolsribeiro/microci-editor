@@ -14,6 +14,9 @@ pub struct MicroCIEditorApp {
 
     #[serde(skip)]
     steps: Vec<Step>,
+
+    #[serde(skip)]
+    status: String,
 }
 
 impl Default for MicroCIEditorApp {
@@ -21,6 +24,7 @@ impl Default for MicroCIEditorApp {
         Self {
             label: "MicroCI editor".to_owned(),
             steps: load_steps(&load_yaml()),
+            status: String::new(),
         }
     }
 }
@@ -42,6 +46,10 @@ impl eframe::App for MicroCIEditorApp {
             egui::MenuBar::new().ui(ui, |ui| {
                 if !cfg!(target_arch = "wasm32") {
                     ui.menu_button("File", |ui| {
+                        if ui.button("Save .microCI.yml").clicked() {
+                            self.status = save_yaml(&self.steps);
+                            ui.close();
+                        }
                         if ui.button("Quit").clicked() {
                             ui.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
@@ -55,6 +63,9 @@ impl eframe::App for MicroCIEditorApp {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading(&self.label);
             ui.label(format!("{} steps", self.steps.len()));
+            if !self.status.is_empty() {
+                ui.label(&self.status);
+            }
             ui.add_space(PADDING);
 
             ScrollArea::both().show(ui, |ui| {
@@ -152,6 +163,32 @@ fn load_yaml() -> String {
 
     #[cfg(target_arch = "wasm32")]
     panic!("Unable to load .microCI.yml: browser builds cannot read the local filesystem.");
+}
+
+fn save_yaml(steps: &[Step]) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = steps;
+        return "Saving files is unavailable in the browser build.".to_owned();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let steps = steps
+            .iter()
+            .map(|step| Value::Mapping(step.data.clone()))
+            .collect::<Vec<_>>();
+        let mut document = Mapping::new();
+        document.insert(Value::String("steps".to_owned()), Value::Sequence(steps));
+
+        match serde_yaml::to_string(&Value::Mapping(document))
+            .map_err(|error| error.to_string())
+            .and_then(|yaml| std::fs::write(".microCI.yml", yaml).map_err(|error| error.to_string()))
+        {
+            Ok(()) => "Saved .microCI.yml".to_owned(),
+            Err(error) => format!("Could not save .microCI.yml: {error}"),
+        }
+    }
 }
 
 fn load_steps(yaml: &str) -> Vec<Step> {
