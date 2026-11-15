@@ -52,7 +52,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(microci_editor::TemplateApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(microci_editor::MicroCIEditorApp::new(cc)))),
             )
             .await;
 

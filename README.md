@@ -22,6 +22,14 @@ The editor loads `.microCI.yml` from the current working directory, displays the
 - Rust 1.95 or newer
 - A desktop environment supported by [eframe](https://github.com/emilk/egui/tree/master/crates/eframe)
 
+## Web version
+
+Try the WebAssembly version online:
+
+[Open MicroCI Editor in the browser](https://geraldolsribeiro.github.io/microci-editor/)
+
+The web demo uses the embedded `.microCI.yml` example.
+
 ## Installation
 
 Install the latest published version from [crates.io](https://crates.io/crates/microci-editor):

@@ -7,6 +7,10 @@ bacon:
 build:
 	cargo build
 
+.PHONY: build_wasm
+build_wasm:
+	cargo build --target=wasm32-unknown-unknown
+
 .PHONY: publish
 publish:
 	cargo fmt --check

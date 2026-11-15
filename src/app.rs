@@ -4,6 +4,8 @@ use egui::ScrollArea;
 use yaml_edit::{Document, Mapping as YamlMapping};
 
 const PADDING: f32 = 5.0;
+#[cfg(target_arch = "wasm32")]
+const WEB_DEMO_YAML: &str = include_str!("../.microCI.yml");
 
 /// The MicroCI editor application.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -165,7 +167,10 @@ fn load_yaml() -> String {
     }
 
     #[cfg(target_arch = "wasm32")]
-    panic!("Unable to load .microCI.yml: browser builds cannot read the local filesystem.");
+    {
+        // The web demo has no access to the user's local filesystem.
+        WEB_DEMO_YAML.to_owned()
+    }
 }
 
 fn save_yaml(document: &Document) -> String {
