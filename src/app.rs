@@ -58,18 +58,64 @@ impl eframe::App for MicroCIEditorApp {
             ui.add_space(PADDING);
 
             ScrollArea::both().show(ui, |ui| {
-                for (index, step) in self.steps.iter().enumerate() {
+                for (index, step) in self.steps.iter_mut().enumerate() {
                     let name = mapping_string(&step.data, "name")
                         .unwrap_or_else(|| format!("Step {}", index + 1));
                     ui.heading(format!("{}. {name}", index + 1));
 
-                    if let Some(description) = mapping_value(&step.data, "description") {
-                        ui.label(description_text(description));
-                    }
+                    egui::Grid::new(("step-fields", index))
+                        .num_columns(2)
+                        .spacing([PADDING * 2.0, PADDING])
+                        .show(ui, |ui| {
+                            let description_key = Value::String("description".to_owned());
+                            let description =
+                                step.data.entry(description_key).or_insert_with(|| {
+                                    Value::String("no description available".to_owned())
+                                });
+                            let mut description_text_value = description_text(description);
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.add_sized([90.0, 24.0], egui::Label::new("Description:"));
+                            });
+                            if ui
+                                .add_sized(
+                                    [320.0, 24.0],
+                                    egui::TextEdit::singleline(&mut description_text_value),
+                                )
+                                .changed()
+                            {
+                                *description = Value::String(description_text_value.clone());
+                            }
+                            ui.end_row();
+
+                            if let Some(only) = step.data.get_mut(Value::String("only".to_owned()))
+                            {
+                                let mut only_text = only.as_str().unwrap_or_default().to_owned();
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.add_sized([90.0, 24.0], egui::Label::new("Only:"));
+                                    },
+                                );
+                                if ui
+                                    .add_sized(
+                                        [320.0, 24.0],
+                                        egui::TextEdit::singleline(&mut only_text),
+                                    )
+                                    .changed()
+                                {
+                                    only_text.retain(|character| character.is_ascii_alphanumeric());
+                                    *only = Value::String(only_text);
+                                }
+                                ui.end_row();
+                            }
+                        });
 
                     ui.add_space(PADDING);
                     for (field_index, (key, value)) in step.data.iter().enumerate() {
-                        if key.as_str() == Some("name") || key.as_str() == Some("description") {
+                        if key.as_str() == Some("name")
+                            || key.as_str() == Some("description")
+                            || key.as_str() == Some("only")
+                        {
                             continue;
                         }
                         // The same field names (for example `plugin`) occur in many steps.
