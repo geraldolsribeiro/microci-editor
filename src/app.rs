@@ -81,7 +81,7 @@ impl eframe::App for MicroCIEditorApp {
                             let description_key = Value::String("description".to_owned());
                             let description =
                                 step.data.entry(description_key).or_insert_with(|| {
-                                    Value::String("no description available".to_owned())
+                                    Value::String(String::new())
                                 });
                             let mut description_text_value = description_text(description);
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -176,7 +176,7 @@ fn save_yaml(steps: &[Step]) -> String {
     {
         let steps = steps
             .iter()
-            .map(|step| Value::Mapping(step.data.clone()))
+            .map(|step| Value::Mapping(ordered_step_mapping(&step.data)))
             .collect::<Vec<_>>();
         let mut document = Mapping::new();
         document.insert(Value::String("steps".to_owned()), Value::Sequence(steps));
@@ -189,6 +189,24 @@ fn save_yaml(steps: &[Step]) -> String {
             Err(error) => format!("Could not save .microCI.yml: {error}"),
         }
     }
+}
+
+fn ordered_step_mapping(data: &Mapping) -> Mapping {
+    let mut ordered = Mapping::new();
+    for key in ["name", "description"] {
+        let key_value = Value::String(key.to_owned());
+        if let Some(value) = data.get(&key_value)
+            && !(key == "description" && value.as_str() == Some(""))
+        {
+            ordered.insert(key_value, value.clone());
+        }
+    }
+    for (key, value) in data {
+        if key.as_str() != Some("name") && key.as_str() != Some("description") {
+            ordered.insert(key.clone(), value.clone());
+        }
+    }
+    ordered
 }
 
 fn load_steps(yaml: &str) -> Vec<Step> {

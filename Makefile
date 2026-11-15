@@ -1,5 +1,6 @@
 .PHONY: all
 all:
+	cp microCI.yml.sample .microCI.yml
 	bacon run
 
 .PHONY: install_bacon
