@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use egui::ScrollArea;
 use serde_yaml::{Mapping, Value};
-use yaml_edit::Document;
+use yaml_edit::{Document, Mapping as YamlMapping};
 
 const PADDING: f32 = 5.0;
 struct Step {
@@ -85,25 +85,16 @@ impl eframe::App for MicroCIEditorApp {
                         let mut index = 0;
                         for step in &steps {
                             if let Some(step) = step.as_mapping() {
-                                let name = step.get("name").map_or_else(
-                                    || format!("Step {}", index + 1),
-                                    |value| value.to_string(),
-                                );
-                                let description = step
-                                    .get("description")
-                                    .map_or_else(String::new, |value| value.to_string());
-                                let only = step
-                                    .get("only")
-                                    .map_or_else(String::new, |value| value.to_string());
-                                let run_as = step
-                                    .get("run_as")
-                                    .map_or_else(String::new, |value| value.to_string());
-                                let network = step
-                                    .get("network")
-                                    .map_or_else(String::new, |value| value.to_string());
+                                let (name, mut description, only, run_as, network) =
+                                    step_text_fields(step, index + 1);
 
                                 ui.heading(format!("{}. {name}", index + 1));
-                                ui.label(description);
+                                ui.horizontal(|ui| {
+                                    ui.label("Description:");
+                                    if ui.text_edit_singleline(&mut description).changed() {
+                                        step.set("description", description.clone());
+                                    }
+                                });
                                 ui.label(only);
                                 ui.label(run_as);
                                 ui.label(network);
@@ -270,6 +261,29 @@ fn load_document() -> Option<Document> {
 //         .map(|data| Step { data })
 //         .collect()
 // }
+
+fn step_text_fields(
+    step: &YamlMapping,
+    index: usize,
+) -> (String, String, String, String, String) {
+    let field = |key: &str| step.get(key).map_or_else(String::new, yaml_value_text);
+    (
+        step.get("name").map_or_else(
+            || format!("Step {index}"),
+            yaml_value_text,
+        ),
+        field("description"),
+        field("only"),
+        field("run_as"),
+        field("network"),
+    )
+}
+
+fn yaml_value_text(value: yaml_edit::YamlNode) -> String {
+    value
+        .as_scalar()
+        .map_or_else(|| value.to_string(), |scalar| scalar.as_string())
+}
 
 fn mapping_value<'a>(mapping: &'a Mapping, key: &str) -> Option<&'a Value> {
     mapping.get(Value::String(key.to_owned()))
