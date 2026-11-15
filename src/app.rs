@@ -42,15 +42,23 @@ impl eframe::App for MicroCIEditorApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let save_shortcut = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::S);
+        let quit_shortcut = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Q);
+        if ui.input_mut(|input| input.consume_shortcut(&save_shortcut)) {
+            self.status = save_yaml(&self.steps);
+        } else if ui.input_mut(|input| input.consume_shortcut(&quit_shortcut)) {
+            ui.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+
         egui::Panel::top("top_panel").show(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 if !cfg!(target_arch = "wasm32") {
                     ui.menu_button("File", |ui| {
-                        if ui.button("Save .microCI.yml").clicked() {
+                        if ui.button("Save\tCtrl+S").clicked() {
                             self.status = save_yaml(&self.steps);
                             ui.close();
                         }
-                        if ui.button("Quit").clicked() {
+                        if ui.button("Quit\tCtrl+Q").clicked() {
                             ui.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
@@ -79,14 +87,17 @@ impl eframe::App for MicroCIEditorApp {
                         .spacing([PADDING * 2.0, PADDING])
                         .show(ui, |ui| {
                             let description_key = Value::String("description".to_owned());
-                            let description =
-                                step.data.entry(description_key).or_insert_with(|| {
-                                    Value::String(String::new())
-                                });
+                            let description = step
+                                .data
+                                .entry(description_key)
+                                .or_insert_with(|| Value::String(String::new()));
                             let mut description_text_value = description_text(description);
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.add_sized([90.0, 24.0], egui::Label::new("Description:"));
-                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.add_sized([90.0, 24.0], egui::Label::new("Description:"));
+                                },
+                            );
                             if ui
                                 .add_sized(
                                     [320.0, 24.0],
@@ -183,8 +194,9 @@ fn save_yaml(steps: &[Step]) -> String {
 
         match serde_yaml::to_string(&Value::Mapping(document))
             .map_err(|error| error.to_string())
-            .and_then(|yaml| std::fs::write(".microCI.yml", yaml).map_err(|error| error.to_string()))
-        {
+            .and_then(|yaml| {
+                std::fs::write(".microCI.yml", yaml).map_err(|error| error.to_string())
+            }) {
             Ok(()) => "Saved .microCI.yml".to_owned(),
             Err(error) => format!("Could not save .microCI.yml: {error}"),
         }
